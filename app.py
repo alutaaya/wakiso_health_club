@@ -10,13 +10,14 @@ from langchain_text_splitters import CharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_groq import ChatGroq
+from PyPDF2 import PdfReader
 
 # --- 0. Load environment variables (for local dev) ---
 load_dotenv()
 
 # --- 1. PDF Download from Google Drive ---
 PDF_FILE_ID = "11V9eOH2XHYrPl0kRnJGbJeGGxxvLuPmZ"  # Google Drive file ID
-PDF_PATH = "Wakiso Health Club_Constitition-Aggreydraft"
+PDF_PATH = "Wakiso_Health_Club.pdf"
 FAISS_INDEX_PATH = "faiss_index"
 
 def download_file_from_google_drive(file_id, destination):
@@ -37,14 +38,25 @@ def download_file_from_google_drive(file_id, destination):
         for chunk in response.iter_content(32768):
             f.write(chunk)
 
-if not os.path.exists(PDF_PATH):
+    # Verify PDF
+    try:
+        reader = PdfReader(destination)
+        if len(reader.pages) == 0:
+            raise ValueError("PDF has no pages")
+    except Exception as e:
+        st.error(f"Downloaded file is not a valid PDF: {e}")
+        if os.path.exists(destination):
+            os.remove(destination)
+        raise
+
+# Download PDF if it doesn't exist or is too small
+if not os.path.exists(PDF_PATH) or os.path.getsize(PDF_PATH) < 1000:
     st.info("Downloading PDF…")
     download_file_from_google_drive(PDF_FILE_ID, PDF_PATH)
     st.success("PDF downloaded successfully!")
 
 # --- 2. Streamlit Page Config ---
-st.set_page_config(page_title="WHC  Assistant", layout="wide")
-
+st.set_page_config(page_title="WHC Assistant", layout="wide")
 
 # --- 3. Load or Create Resources with Caching ---
 @st.cache_resource
@@ -74,7 +86,6 @@ def load_vectorstore():
 
 @st.cache_resource
 def load_llm():
-    # ✅ safer access to secrets
     groq_api = st.secrets.get("groq_api") or os.getenv("groq_api")
 
     if not groq_api:
@@ -120,17 +131,17 @@ def main():
     st.title("WHC Assistant Chatbot")
     st.write("Built by **Alfred Lutaaya** | Based on *WHC Constitution*.")
 
-    # ✅ debug: see which secrets are available
+    # Debug: see which secrets are available
     st.write("DEBUG: Available secrets →", list(st.secrets.keys()))
 
     vectorstore = load_vectorstore()
     llm = load_llm()
 
-    # --- Initialize chat history ---
+    # Initialize chat history
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = []
 
-    # --- User input ---
+    # User input
     user_input = st.text_input("Enter your question:")
 
     if st.button("Ask") and user_input:
@@ -140,7 +151,7 @@ def main():
     if st.button("Clear Chat"):
         st.session_state["chat_history"] = []
 
-    # --- Display chat history ---
+    # Display chat history
     for q, a in st.session_state["chat_history"]:
         st.markdown(f"**You:** {q}")
         st.markdown(f"**Assistant:** {a}")
