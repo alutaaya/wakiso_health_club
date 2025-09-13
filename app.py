@@ -2,6 +2,7 @@
 # Streamlit version of the Uganda HIV/AIDS Assistant
 
 import os
+from pathlib import Path
 import requests
 import streamlit as st
 from dotenv import load_dotenv
@@ -17,43 +18,48 @@ load_dotenv()
 
 # --- 1. PDF Download from Google Drive ---
 PDF_FILE_ID = "11V9eOH2XHYrPl0kRnJGbJeGGxxvLuPmZ"  # Google Drive file ID
-PDF_PATH = "Wakiso_Health_Club.pdf"
+PDF_PATH = "Wakiso_Health_Club_Constitution-Aggreydraft.pdf"
 FAISS_INDEX_PATH = "faiss_index"
 
-def download_file_from_google_drive(file_id, destination):
-    """Download a file from Google Drive given a file ID."""
+def download_file_from_google_drive(file_id: str, destination: str):
+    """
+    Downloads a Google Drive file to a local destination reliably.
+    Handles confirmation token for large files.
+    """
     URL = "https://docs.google.com/uc?export=download"
     session = requests.Session()
 
     response = session.get(URL, params={'id': file_id}, stream=True)
     token = None
+
+    # Check cookies for large file confirmation token
     for key, value in response.cookies.items():
         if key.startswith('download_warning'):
             token = value
-    if token:
-        params = {'id': file_id, 'confirm': token}
-        response = session.get(URL, params=params, stream=True)
 
+    if token:
+        response = session.get(URL, params={'id': file_id, 'confirm': token}, stream=True)
+
+    # Write to destination
     with open(destination, "wb") as f:
         for chunk in response.iter_content(32768):
-            f.write(chunk)
+            if chunk:  # filter out keep-alive new chunks
+                f.write(chunk)
 
-    # Verify PDF
+    # Verify the file is a PDF
     try:
         reader = PdfReader(destination)
         if len(reader.pages) == 0:
-            raise ValueError("PDF has no pages")
+            raise ValueError("Downloaded PDF has no pages")
+        st.success(f"✅ PDF downloaded successfully: {destination} ({len(reader.pages)} pages)")
     except Exception as e:
-        st.error(f"Downloaded file is not a valid PDF: {e}")
-        if os.path.exists(destination):
-            os.remove(destination)
-        raise
+        Path(destination).unlink(missing_ok=True)
+        raise RuntimeError(f"Downloaded file is not a valid PDF: {e}")
 
 # Download PDF if it doesn't exist or is too small
-if not os.path.exists(PDF_PATH) or os.path.getsize(PDF_PATH) < 1000:
+if not Path(PDF_PATH).exists() or Path(PDF_PATH).stat().st_size < 1000:
     st.info("Downloading PDF…")
     download_file_from_google_drive(PDF_FILE_ID, PDF_PATH)
-    st.success("PDF downloaded successfully!")
 
 # --- 2. Streamlit Page Config ---
 st.set_page_config(page_title="WHC Assistant", layout="wide")
@@ -159,3 +165,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
