@@ -15,7 +15,7 @@ from langchain_groq import ChatGroq
 load_dotenv()
 
 # --- 1. PDF Download from Google Drive ---
-PDF_FILE_ID = "https://drive.google.com/file/d/11V9eOH2XHYrPl0kRnJGbJeGGxxvLuPmZ/view?usp=drive_link"  # Google Drive file ID
+PDF_FILE_ID = "11V9eOH2XHYrPl0kRnJGbJeGGxxvLuPmZ"  # Google Drive file ID
 PDF_PATH = "Wakiso Health Club_Constitition-Aggreydraft"
 FAISS_INDEX_PATH = "faiss_index"
 
